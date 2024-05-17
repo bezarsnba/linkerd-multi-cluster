@@ -58,7 +58,7 @@ step certificate create \
     --profile root-ca \
     --no-password  --insecure --force
 
-for cluster in ${CLUSTERS}; do
+for cluster in ${CLUSTERS} ; do
     # Check that the cluster is up and running.
     while ! $LINKERD --context="$cluster" check --pre ; do :; done
 
@@ -126,4 +126,73 @@ for ctx in west east; do
         kubectl apply --context="k3d-$ctx" -f -
 done
 }
-fcreateCluster
+
+fetch_credentials() {
+    
+    cluster="$1"
+    # Grab the LB IP of cluster's API server & replace it in the secret blob:
+    lb_ip=$(kubectl --context="$cluster" get svc -n kube-system traefik \
+        -o 'go-template={{ (index .status.loadBalancer.ingress 0).ip }}')
+
+    $LINKERD multicluster --context="$cluster" link \
+            --cluster-name="$cluster" \
+            --api-server-address="https://${lb_ip}:6443"
+}
+
+link () {
+    # East & West get access to each other.
+    fetch_credentials east | kubectl --context=west apply  -f -
+    #fetch_credentials east
+    fetch_credentials west | kubectl --context=east apply -f -
+
+    sleep 10
+    for c in east west ; do
+        $LINKERD --context="$c" mc check
+    done
+}
+
+deleteCluster () {
+for cluster in ${CLUSTERS} ; do \
+    echo "Deleting cluster $cluster..." ;\
+    if k3d cluster get "$cluster" >/dev/null 2>&1; then \
+        k3d cluster delete $cluster ;\
+    else \
+        echo "Cluster $cluster does not exist" >&2 ;\
+    fi ;\
+done
+}
+
+stop () {
+    for cluster in ${CLUSTERS} ; do \
+        echo "Stopping cluster $cluster..." ;\
+        if k3d cluster get "$cluster" >/dev/null 2>&1; then \
+            k3d cluster stop $cluster ;\
+        else \
+            echo "Cluster $cluster does not exist" >&2 ;\
+        fi ;\
+    done
+}
+unlink () {
+   $LINKERD --context=east multicluster unlink --cluster-name=west | kubectl delete -f - --context=east
+   $LINKERD --context=west multicluster unlink --cluster-name=east | kubectl delete -f - --context=west
+}
+lmcuninstall () {
+    for cluster in ${CLUSTERS}; do
+	$LINKERD --context="$cluster" multicluster uninstall |
+	    kubectl --context="$cluster" delete -f -
+    done
+}
+
+# Verifica se foi fornecido um argumento
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <function>"
+    exit 1
+fi
+
+# Chama a função especificada pelo argumento
+if declare -F "$1" > /dev/null; then
+    "$1"
+else
+    echo "Function '$1' not found"
+    exit 1
+fi

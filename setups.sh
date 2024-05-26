@@ -7,13 +7,13 @@ ORG_DOMAIN=k3d.example.com
 CLUSTERS="east west"
 LINKERD="${LINKERD:-linkerd}"
 
-fcreateCluster (){
+createCluster (){
 for cluster in ${CLUSTERS} ; do \
     echo "Creating cluster $cluster..." ;\
     if k3d cluster get "$cluster" >/dev/null 2>&1; then \
         echo "Cluster $cluster already exists" >&2 ;\
     else \
-        k3d cluster create $cluster \
+        k3d cluster create $cluster  \
             --api-port="$((API_PORT++))" \
 	        --network="multicluster-example" \
             --k3s-arg='--disable=local-storage,metrics-server@server:*' \
@@ -51,7 +51,7 @@ done
 
 # Generate the trust roots. These never touch the cluster. In the real world
 # we'd squirrel these away in a vault.
-fInstallLInkerd ( ){
+installLInkerd ( ){
 step certificate create \
     "identity.linkerd.${ORG_DOMAIN}" \
     cert/ca.crt cert/ca.key \
@@ -97,18 +97,18 @@ finstallLinkerdViz () {
     
     for cluster in ${CLUSTERS}; do
     domain="${cluster}.${ORG_DOMAIN}"
-    while ! $LINKERD --context="k3d-$cluster" check ; do :; done
+    while ! $LINKERD --context="$cluster" check ; do :; done
 
-    $LINKERD --context="k3d-$cluster" viz install --set clusterDomain="${domain}" |
-        kubectl --context="k3d-$cluster" apply -f -
+    $LINKERD --context="$cluster" viz install --set clusterDomain="${domain}" |
+        kubectl --context="$cluster" apply -f -
 
     sleep 10
-    while ! $LINKERD --context="k3d-$cluster" viz check ; do :; done
+    while ! $LINKERD --context="$cluster" viz check ; do :; done
 
 done
 }
 
-fInstallMulticluster () {
+installmc () {
     for cluster in ${CLUSTERS}; do
         while ! $LINKERD --context="$cluster" check ; do :; done
         $LINKERD --context="$cluster" multicluster install |
@@ -120,10 +120,15 @@ fInstallMulticluster () {
 
 installemojivoto () {
 for ctx in west east; do
-    kubectl --context="k3d-$ctx" apply -f https://run.linkerd.io/emojivoto.yml
-    kubectl get deploy -n emojivoto --context="k3d-$ctx" -oyaml | 
-        linkerd --context="k3d-$ctx" inject - | 
-        kubectl apply --context="k3d-$ctx" -f -
+    kubectl --context="$ctx" apply -f https://run.linkerd.io/emojivoto.yml
+    kubectl get deploy -n emojivoto --context="$ctx" -oyaml | 
+        linkerd --context="$ctx" inject - | 
+        kubectl apply --context="$ctx" -f -
+done
+}
+uninstallemojivoto () {
+for ctx in west east; do
+    kubectl --context="$ctx" delete -f https://run.linkerd.io/emojivoto.yml
 done
 }
 
@@ -134,7 +139,7 @@ fetch_credentials() {
     lb_ip=$(kubectl --context="$cluster" get svc -n kube-system traefik \
         -o 'go-template={{ (index .status.loadBalancer.ingress 0).ip }}')
 
-    $LINKERD multicluster --context="$cluster" link \
+    linkerd multicluster --context="$cluster" link \
             --cluster-name="$cluster" \
             --api-server-address="https://${lb_ip}:6443"
 }
@@ -167,6 +172,16 @@ stop () {
         echo "Stopping cluster $cluster..." ;\
         if k3d cluster get "$cluster" >/dev/null 2>&1; then \
             k3d cluster stop $cluster ;\
+        else \
+            echo "Cluster $cluster does not exist" >&2 ;\
+        fi ;\
+    done
+}
+start () {
+    for cluster in ${CLUSTERS} ; do \
+        echo "Starting cluster $cluster..." ;\
+        if k3d cluster get "$cluster" >/dev/null 2>&1; then \
+            k3d cluster start $cluster ;\
         else \
             echo "Cluster $cluster does not exist" >&2 ;\
         fi ;\

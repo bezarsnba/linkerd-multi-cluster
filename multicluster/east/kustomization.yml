@@ -4,12 +4,6 @@ resources:
 
 patches:
   - target:
-      group: v1
-      version: ConfigMap
-      kind: ConfigMap
-      name: frontend
-    path: configmap.yaml
-  - target:
       group: apps
       version: v1
       kind: Deployment

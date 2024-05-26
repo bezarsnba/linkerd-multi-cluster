@@ -25,7 +25,7 @@ data:
         proxy_http_version 1.1;
       }
       location /east {
-        proxy_pass http://podinfo-$east.test.svc.east.k3d.example.com:9898/;
+        proxy_pass http://podinfo-$east.test.svc.west.k3d.example.com:9898/;
         proxy_http_version 1.1;
       }
       location /west {

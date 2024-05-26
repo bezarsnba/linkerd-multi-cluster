@@ -1,7 +1,7 @@
 resources:
   - ../base
- - configmap.yaml
- 
+  - configmap.yaml
+
 patches:
   - target:
       group: apps

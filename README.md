@@ -8,4 +8,6 @@ Below I have some reference:
 - https://linkerd.io/2.15/tasks/multicluster/
 - https://github.com/linkerd/website/pull/1762
 - https://medium.com/@kapilvk/linkerd-multicluster-failover-5ee82fbad69e
+- https://linkerd.io/2.15/tasks/automatic-failover/
 - https://github.com/cpretzer/demos
+

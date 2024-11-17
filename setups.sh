@@ -3,7 +3,7 @@ set -eu
 API_PORT=6440
 HTTP_PORT=80
 HTTPS_PORT=443
-ORG_DOMAIN=k3d.example.com
+ORG_DOMAIN=cluster.local
 CLUSTERS="east west"
 LINKERD="${LINKERD:-linkerd}"
 
@@ -17,7 +17,7 @@ for cluster in ${CLUSTERS} ; do \
             --api-port="$((API_PORT++))" \
 	        --network="multicluster-example" \
             --k3s-arg='--disable=local-storage,metrics-server@server:*' \
-            --k3s-arg="--cluster-domain=$cluster.${ORG_DOMAIN}@server:*" \
+            --k3s-arg="--cluster-domain=${ORG_DOMAIN}@server:*" \
             --kubeconfig-update-default \
             --kubeconfig-switch-context=false ;\
     fi ;\
@@ -66,7 +66,7 @@ for cluster in ${CLUSTERS} ; do
     # rotated from the root).
     crt="cert/${cluster}-issuer.crt"
     key="cert/${cluster}-issuer.key"
-    domain="${cluster}.${ORG_DOMAIN}"
+    domain="${ORG_DOMAIN}"
     step certificate create "identity.linkerd.${domain}" \
         "$crt" "$key" \
         --ca=cert/ca.crt \
@@ -93,10 +93,10 @@ for cluster in ${CLUSTERS} ; do
 done
 }
 
-finstallLinkerdViz () {
+installViz () {
     
     for cluster in ${CLUSTERS}; do
-    domain="${cluster}.${ORG_DOMAIN}"
+    domain="${ORG_DOMAIN}"
     while ! $LINKERD --context="$cluster" check ; do :; done
 
     $LINKERD --context="$cluster" viz install --set clusterDomain="${domain}" |
@@ -107,11 +107,17 @@ finstallLinkerdViz () {
 
 done
 }
+installsmi () {
+   for cluster in ${CLUSTERS}; do
+       while ! $LINKERD --context="$cluster" check ; do :; done
+       $LINKERD  smi install --context=$cluster| kubectl --context="$cluster" apply -f - 
+       done
 
+}
 installmc () {
     for cluster in ${CLUSTERS}; do
         while ! $LINKERD --context="$cluster" check ; do :; done
-        $LINKERD --context="$cluster" multicluster install |
+        $LINKERD --context="$cluster" multicluster install  |
             kubectl --context="$cluster" apply -f -
     done
     linkerd multicluster check --context="$cluster"
@@ -139,7 +145,7 @@ fetch_credentials() {
     lb_ip=$(kubectl --context="$cluster" get svc -n kube-system traefik \
         -o 'go-template={{ (index .status.loadBalancer.ingress 0).ip }}')
 
-    linkerd multicluster --context="$cluster" link \
+    linkerd multicluster --context="$cluster" link  \
             --cluster-name="$cluster" \
             --api-server-address="https://${lb_ip}:6443"
 }
@@ -147,7 +153,7 @@ fetch_credentials() {
 link () {
     # East & West get access to each other.
     fetch_credentials east | kubectl --context=west apply  -f -
-    #fetch_credentials east
+    fetch_credentials east
     fetch_credentials west | kubectl --context=east apply -f -
 
     sleep 10
@@ -188,8 +194,8 @@ start () {
     done
 }
 unlink () {
-   $LINKERD --context=east multicluster unlink --cluster-name=west | kubectl delete -f - --context=east
    $LINKERD --context=west multicluster unlink --cluster-name=east | kubectl delete -f - --context=west
+   $LINKERD --context=east multicluster unlink --cluster-name=west | kubectl delete -f - --context=east
 }
 lmcuninstall () {
     for cluster in ${CLUSTERS}; do

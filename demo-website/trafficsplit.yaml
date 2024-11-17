@@ -1,13 +1,11 @@
-apiVersion: split.smi-spec.io/v1alpha1
+apiVersion: split.smi-spec.io/v1alpha2
 kind: TrafficSplit
 metadata:
   name: podinfo
-  namespace: test
 spec:
   service: podinfo
   backends:
-  - service: podinfo
-    weight: 50
   - service: podinfo-east
     weight: 50
-
+  - service: podinfo
+    weight: 50

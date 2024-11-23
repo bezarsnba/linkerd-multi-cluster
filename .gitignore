@@ -1,2 +1,7 @@
 cert/*
 trash/*
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform/*
+terraform/cola.txt
+terraform/terraform.tfvars

@@ -1,6 +1,5 @@
 resources:
   - ../base
-  - configmap.yaml
 
 patches:
   - target:
@@ -15,4 +14,3 @@ patches:
       kind: Deployment
       name: frontend
     path: frontend.yml
-
